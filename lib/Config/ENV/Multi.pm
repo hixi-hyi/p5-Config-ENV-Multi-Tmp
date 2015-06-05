@@ -16,7 +16,7 @@ sub import {
 
         push @{"$package\::ISA"}, __PACKAGE__;
 
-        for my $method (qw/common config env debug rule/) {
+        for my $method (qw/common config env rule/) {
             *{"$package\::$method"} = \&{__PACKAGE__ . "::" . $method}
         }
 
@@ -28,6 +28,7 @@ sub import {
             current_env  => undef,
             current_rule => undef,
             rule         => $opts{rule},
+            env          => ref $envs ? undef: $envs,
         };
     } else {
         my %opts    = @_;
@@ -117,7 +118,7 @@ sub common ($) {
 sub _config_env {
     my ($package, $names, $hash) = @_;
     my $name = _flatten_env($names);
-    my $current_env = _data($package)->{current_env};
+    my $current_env = _data($package)->{env} || _data($package)->{current_env};
     _data($package)->{specific}->{$current_env}{$name} = $hash;
 }
 

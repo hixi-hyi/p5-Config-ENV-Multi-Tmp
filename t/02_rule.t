@@ -6,6 +6,7 @@ use Config::ENV::Multi [qw/ENV REGION/];
 common {
     cnf => '/etc/my.cnf',
 };
+
 rule '{ENV}_{REGION}' => sub {
     config 'prod_jp' => {
         db_host => 'jp.local',
