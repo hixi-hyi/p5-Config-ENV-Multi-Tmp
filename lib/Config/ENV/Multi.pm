@@ -12,19 +12,22 @@ sub import {
     no strict 'refs';
     if (__PACKAGE__ eq $class) {
         my $envs = shift;
+        my %opts    = @_;
 
         push @{"$package\::ISA"}, __PACKAGE__;
 
-        for my $method (qw/common config env debug/) {
+        for my $method (qw/common config env debug rule/) {
             *{"$package\::$method"} = \&{__PACKAGE__ . "::" . $method}
         }
 
         no warnings 'once';
         ${"$package\::data"} = +{
-            common      => {},
-            specific    => {},
-            envs        => $envs,
-            current_env => undef,
+            common       => {},
+            specific     => {},
+            envs         => $envs,
+            current_env  => undef,
+            current_rule => undef,
+            rule         => $opts{rule},
         };
     } else {
         my %opts    = @_;
@@ -36,40 +39,102 @@ sub import {
 }
 
 sub _data {
-    my $package = shift || caller(1);
+    my $package = shift;
     no strict 'refs';
     no warnings 'once';
     ${"$package\::data"};
 }
 
-sub _flatten {
+sub _flatten_env {
     my $v = shift;
     $v = [$v] unless ref $v;
     join '%%', grep { $_ if ($_) } @{$v};
 }
-sub _parse {
+
+sub _parse_env {
     my $f = shift;
     [split '%%', $f];
 }
 
-sub env ($&) {
-    my ($env, $code) = @_;
-    my $f_env = _flatten($env);
-    _data->{current_env} = $f_env;
-    $code->();
-    _data->{current_env} = undef;
+sub _dataset {
+    my $caption = shift;
+    my $env = _defined($caption);
+    my %envs = map { $_ => $ENV{$_} } @$env;
+    return \%envs;
+}
+sub _defined {
+    my ($caption) = @_;
+    return [
+        grep { defined && length }
+        map {
+            /^\{(.+?)\}$/ ? $1 : undef
+        }
+        grep { defined && length }
+        split /(\{.+?\})/, $caption
+    ];
 }
 
+sub _embeded {
+    my ($caption, $dataset) = @_;
+    return
+        join '',
+        map {
+            /^\{(.+?)\}$/
+                ? defined $dataset->{$1}
+                    ? $dataset->{$1}
+                    : $_
+                : $_
+        }
+        grep { defined && length }
+        split /(\{.+?\})/, $caption;
+}
+
+sub rule {
+    my $package = caller(0);
+    my ($rule, $code) = @_;
+    _data($package)->{current_rule} = $rule;
+    $code->();
+    _data($package)->{current_rule} = undef;
+}
+
+sub env ($&) {
+    my $package = caller(0);
+    my ($env, $code) = @_;
+
+    my $f_env = _flatten_env($env);
+    _data($package)->{current_env} = $f_env;
+    $code->();
+    _data($package)->{current_env} = undef;
+}
+
+
 sub common ($) {
+    my $package = caller(0);
     my ($hash) = @_;
-    _data->{common} = $hash;
+    _data($package)->{common} = $hash;
+}
+
+sub _config_env {
+    my ($package, $names, $hash) = @_;
+    my $name = _flatten_env($names);
+    my $current_env = _data($package)->{current_env};
+    _data($package)->{specific}->{$current_env}{$name} = $hash;
+}
+
+sub _config_rule {
+    my ($package, $names, $hash) = @_;
+    my $name = _flatten_env($names);
+    my $current_rule = _data($package)->{rule} || _data($package)->{current_rule};
+    _data($package)->{specific}->{$current_rule}{$name} = $hash;
 }
 
 sub config ($$) {
-    my ($names, $hash) = @_;
-    my $name = _flatten($names);
-    my $current_env = _data->{current_env};
-    _data->{specific}->{$current_env}{$name} = $hash;
+    my $package = caller(0);
+    if (_data($package)->{rule} || _data($package)->{current_rule}) {
+        return _config_rule($package, @_);
+    } else {
+        return _config_env($package, @_);
+    }
 }
 
 sub current {
@@ -78,6 +143,7 @@ sub current {
 
     my $vals = +{
         %{ $data->{common} },
+        %{ _rule_value($package) || {} },
         %{ _env_value($package) || {} },
     };
 }
@@ -87,7 +153,24 @@ sub _env_value {
     my $data = _data($package)->{specific};
     my %targets;
     for my $env (keys %{$data})  {
-        my $compiled = _flatten([map { $ENV{$_} } @{ _parse($env) }]);
+        my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
+        $targets{$env} = $data->{$env}{$compiled};
+    }
+
+    my %merged;
+    for my $target (values %targets) {
+        next unless $target;
+        %merged = ( %merged , %$target );
+    }
+    return \%merged;
+}
+
+sub _rule_value {
+    my ($package) = @_;
+    my $data = _data($package)->{specific};
+    my %targets;
+    for my $env (keys %{$data})  {
+        my $compiled = _embeded($env, _dataset($env));
         $targets{$env} = $data->{$env}{$compiled};
     }
 
@@ -101,7 +184,8 @@ sub _env_value {
 
 sub debug {
     my $package = shift;
-    use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_env_value($package)));
+    #use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_data($package)));
+    #use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_env_value($package)));
 }
 
 1;
