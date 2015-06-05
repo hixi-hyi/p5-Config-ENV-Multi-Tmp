@@ -183,12 +183,6 @@ sub _rule_value {
     return \%merged;
 }
 
-sub debug {
-    my $package = shift;
-    #use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_data($package)));
-    #use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_env_value($package)));
-}
-
 1;
 __END__
 
@@ -196,15 +190,41 @@ __END__
 
 =head1 NAME
 
-Config::ENV::Multi - It's new $module
+Config::ENV::Multi - is ....
 
 =head1 SYNOPSIS
 
-    use Config::ENV::Multi;
+    package Config;
+    use Config::ENC::Multi [qw/ENV REGION/];
+
+    env 'ENV' => sub {
+        config dev => {
+            debug => 1,
+        };
+    };
+
+    env 'REGION' => sub {
+        config jp => {
+            timeout => 1,
+        };
+        config us => {
+            timeout => 5,
+        },
+    };
+
+    use Config;
+    Config->current;
+    # $ENV{ENV}=dev, $ENV{REGION}=jp
+    # {
+    #   debug     => 1,
+    #   timeout   => 1,
+    # }
+
 
 =head1 DESCRIPTION
 
-Config::ENV::Multi is ...
+Config::ENV::Multi is the same of Config::ENV.
+but supported Multi ENVIRONMENT VARIABLES.
 
 =head1 LICENSE
 
