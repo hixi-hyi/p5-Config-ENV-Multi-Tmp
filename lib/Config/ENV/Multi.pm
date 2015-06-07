@@ -14,21 +14,33 @@ sub import {
         my $envs = shift;
         my %opts    = @_;
 
+        my $env;
+        if (ref $envs) {
+            $env = undef;
+        } else {
+            $env = $envs;
+            $envs = [$envs];
+        }
+
         push @{"$package\::ISA"}, __PACKAGE__;
 
         for my $method (qw/common config env rule/) {
             *{"$package\::$method"} = \&{__PACKAGE__ . "::" . $method}
         }
 
+        my $cache_rule = join '%%', map { "{$_}" } @{$envs};
+
         no warnings 'once';
         ${"$package\::data"} = +{
             common       => {},
             specific     => {},
             envs         => $envs,
+            cache        => {},
+            cache_rules  => $cache_rule,
             current_env  => undef,
             current_rule => undef,
             rule         => $opts{rule},
-            env          => ref $envs ? undef: $envs,
+            env          => $env,
         };
     } else {
         my %opts    = @_;
@@ -63,6 +75,7 @@ sub _dataset {
     my %envs = map { $_ => $ENV{$_} } @$env;
     return \%envs;
 }
+
 sub _defined {
     my ($caption) = @_;
     return [
@@ -119,6 +132,7 @@ sub _config_env {
     my ($package, $names, $hash) = @_;
     my $name = _flatten_env($names);
     my $current_env = _data($package)->{env} || _data($package)->{current_env};
+    $current_env = "undef" unless $current_env;
     _data($package)->{specific}->{$current_env}{$name} = $hash;
 }
 
@@ -138,11 +152,14 @@ sub config ($$) {
     }
 }
 
+
 sub current {
     my ($package) = @_;
     my $data = _data($package);
 
-    my $vals = +{
+    my $cache_val = _embeded($data->{cache_rules}, _dataset($data->{cache_rules}));
+
+    my $vals = $data->{cache}->{$cache_val} ||= +{
         %{ $data->{common} },
         %{ _rule_value($package) || {} },
         %{ _env_value($package) || {} },

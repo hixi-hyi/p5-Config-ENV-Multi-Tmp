@@ -22,16 +22,12 @@ use Test::Deep;
 undef $ENV{ENV};
 undef $ENV{REGION};
 
-__PACKAGE__->debug;
-
 cmp_deeply +__PACKAGE__->current, {
     cnf => '/etc/my.cnf',
 };
 
 $ENV{ENV}='prod';
 $ENV{REGION}='jp';
-
-__PACKAGE__->debug;
 
 cmp_deeply +__PACKAGE__->current, {
     cnf => '/etc/my.cnf',

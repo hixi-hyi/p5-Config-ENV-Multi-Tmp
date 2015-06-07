@@ -27,7 +27,7 @@ $ENV{REGION}='us';
 cmp_deeply +__PACKAGE__->current, {
     type => 's3',
     az   => 'south',
-};
+} or note explain __PACKAGE__->current;
 
 $ENV{REGION}='jp';
 cmp_deeply +__PACKAGE__->current, {
