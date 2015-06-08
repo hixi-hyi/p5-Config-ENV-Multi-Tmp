@@ -162,6 +162,7 @@ sub current {
     my $vals = $data->{cache}->{$cache_val} ||= +{
         %{ $data->{common} },
         %{ _env_value($package) || {} },
+        %{ _env_value_asterisk($package) || {} },
         %{ _rule_value($package) || {} },
         %{ _rule_value_asterisk($package) || {} },
     };
@@ -172,6 +173,24 @@ sub _env_value {
     my $data = _data($package)->{specific}{env};
     my %targets;
     for my $env (keys %{$data})  {
+        my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
+        $targets{$env} = $data->{$env}{$compiled};
+    }
+
+    my %merged;
+    for my $target (values %targets) {
+        next unless $target;
+        %merged = ( %merged , %$target );
+    }
+    return \%merged;
+}
+
+sub _env_value_asterisk {
+    my ($package) = @_;
+    my $data = _data($package)->{specific}{env};
+    my %targets;
+    for my $env (keys %{$data})  {
+        use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper($env));
         my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
         $targets{$env} = $data->{$env}{$compiled};
     }
