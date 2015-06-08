@@ -33,7 +33,7 @@ sub import {
         no warnings 'once';
         ${"$package\::data"} = +{
             common       => {},
-            specific     => {},
+            specific     => { env => {}, rule => {} },
             envs         => $envs,
             cache        => {},
             cache_rules  => $cache_rule,
@@ -96,7 +96,7 @@ sub _embeded {
             /^\{(.+?)\}$/
                 ? defined $dataset->{$1}
                     ? $dataset->{$1}
-                    : $_
+                    : ''
                 : $_
         }
         grep { defined && length }
@@ -133,14 +133,14 @@ sub _config_env {
     my $name = _flatten_env($names);
     my $current_env = _data($package)->{env} || _data($package)->{current_env};
     $current_env = "undef" unless $current_env;
-    _data($package)->{specific}->{$current_env}{$name} = $hash;
+    _data($package)->{specific}{env}{$current_env}{$name} = $hash;
 }
 
 sub _config_rule {
     my ($package, $names, $hash) = @_;
     my $name = _flatten_env($names);
     my $current_rule = _data($package)->{rule} || _data($package)->{current_rule};
-    _data($package)->{specific}->{$current_rule}{$name} = $hash;
+    _data($package)->{specific}{rule}{$current_rule}{$name} = $hash;
 }
 
 sub config ($$) {
@@ -161,14 +161,15 @@ sub current {
 
     my $vals = $data->{cache}->{$cache_val} ||= +{
         %{ $data->{common} },
-        %{ _rule_value($package) || {} },
         %{ _env_value($package) || {} },
+        %{ _rule_value($package) || {} },
+        %{ _rule_value_asterisk($package) || {} },
     };
 }
 
 sub _env_value {
     my ($package) = @_;
-    my $data = _data($package)->{specific};
+    my $data = _data($package)->{specific}{env};
     my %targets;
     for my $env (keys %{$data})  {
         my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
@@ -185,7 +186,7 @@ sub _env_value {
 
 sub _rule_value {
     my ($package) = @_;
-    my $data = _data($package)->{specific};
+    my $data = _data($package)->{specific}{rule};
     my %targets;
     for my $env (keys %{$data})  {
         my $compiled = _embeded($env, _dataset($env));
@@ -194,6 +195,40 @@ sub _rule_value {
 
     my %merged;
     for my $target (values %targets) {
+        next unless $target;
+        %merged = ( %merged , %$target );
+    }
+    return \%merged;
+}
+
+sub _asterisk_dataset {
+    my $caption = shift;
+    my $asterisks = [];
+    my $envs = _defined($caption);
+    my @allenvs = ();
+    push @allenvs , { map { $_ => '*' } @$envs };
+    for my $target (@$envs) {
+        my $ast = { map { $_ => '*' } @$envs };
+        push @allenvs, { %$ast, $target => $ENV{$target} };
+    }
+
+    return \@allenvs;
+}
+
+
+sub _rule_value_asterisk {
+    my ($package) = @_;
+    my $data = _data($package)->{specific}{rule};
+    my @targets;
+    for my $env (keys %{$data})  {
+        for my $dataset (@{_asterisk_dataset($env)}) {
+            my $compiled = _embeded($env, $dataset);
+            push @targets, $data->{$env}{$compiled};
+        }
+    }
+
+    my %merged;
+    for my $target (@targets) {
         next unless $target;
         %merged = ( %merged , %$target );
     }
