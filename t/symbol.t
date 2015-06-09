@@ -6,17 +6,25 @@ use Config::ENV::Multi [qw/ENV REGION/];
 config [qw/* */] => {
     cnf => 'my.cnf',
 };
+config ['prod', undef] => {
+    env    => 'prod',
+    region => undef,
+};
 config [qw/prod jp/] => {
-    db_host => 'jp.local',
+    env    => 'prod',
+    region => 'jp',
 };
 config [qw/dev jp/] => {
-    db_host => 'localhost',
+    env    => 'dev',
+    region => 'jp',
 };
 config [qw/prod us/] => {
-    db_host => 'us.local',
+    env    => 'prod',
+    region => 'us',
 };
 config [qw/dev us/] => {
-    db_host => 'localhost',
+    env    => 'prod',
+    region => 'us',
 };
 
 use Test::More;
@@ -34,7 +42,8 @@ undef $ENV{REGION};
 
 cmp_deeply +__PACKAGE__->current, {
     cnf     => '/etc/my.cnf',
-    is_prod => 1,
+    env    => 'prod',
+    region => undef,
 };
 
 $ENV{ENV}='prod';
@@ -42,9 +51,8 @@ $ENV{REGION}='jp';
 
 cmp_deeply +__PACKAGE__->current, {
     cnf     => '/etc/my.cnf',
-    is_prod => 1,
-    az      => 'tokyo',
-    db_host => 'jp.local',
+    env    => 'prod',
+    region => 'jp',
 };
 
 done_testing;

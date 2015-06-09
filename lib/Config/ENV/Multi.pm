@@ -16,7 +16,8 @@ sub import {
 
         my $env;
         if (ref $envs) {
-            $env = undef;
+            $env = $envs;
+            $envs = $envs;
         } else {
             $env = $envs;
             $envs = [$envs];
@@ -40,7 +41,7 @@ sub import {
             current_env  => undef,
             current_rule => undef,
             rule         => $opts{rule},
-            env          => $env,
+            env          => $cache_rule,
         };
     } else {
         my %opts    = @_;
@@ -158,6 +159,7 @@ sub current {
     my $data = _data($package);
 
     my $cache_val = _embeded($data->{cache_rules}, _dataset($data->{cache_rules}));
+    use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper(_env_value($package)));
 
     my $vals = $data->{cache}->{$cache_val} ||= +{
         %{ $data->{common} },
@@ -173,7 +175,10 @@ sub _env_value {
     my $data = _data($package)->{specific}{env};
     my %targets;
     for my $env (keys %{$data})  {
+        my $t = [ map { $ENV{$_} } @{ _parse_env($env) } ];
+        use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper($t));
         my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
+        use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper($compiled));
         $targets{$env} = $data->{$env}{$compiled};
     }
 
@@ -190,7 +195,6 @@ sub _env_value_asterisk {
     my $data = _data($package)->{specific}{env};
     my %targets;
     for my $env (keys %{$data})  {
-        use Data::Dumper::Names; printf("[%s]\n%s \n",(caller 0)[3],Dumper($env));
         my $compiled = _flatten_env([map { $ENV{$_} } @{ _parse_env($env) }]);
         $targets{$env} = $data->{$env}{$compiled};
     }
